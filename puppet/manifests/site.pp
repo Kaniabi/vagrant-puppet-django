@@ -12,9 +12,9 @@ include apt
 include nginx
 include uwsgi
 include mysql
-include python
+#include python
 include virtualenv
-## EDIT: Do we need PIL include pildeps
+include pildeps
 include software
 
 class timezone {
@@ -41,11 +41,14 @@ class user {
   }
 
   # Prepare user's project directories
-  file { ["/home/${user}/virtualenvs",
-          "/home/${user}/public_html",
-          "/home/${user}/public_html/${domain_name}",
-          "/home/${user}/public_html/${domain_name}/static"
-          ]:
+  file {
+    [
+      "${virtualenvs_path}",
+      "${logs_path}",
+      "${public_html_path}",
+      "${public_html_path}/${domain_name}",
+      "${public_html_path}/${domain_name}/static"
+    ]:
     ensure => directory,
     owner => "${user}",
     group => "${user}",
@@ -54,7 +57,7 @@ class user {
   }
 
   file { 'media dir':
-    path => "/home/${user}/public_html/${domain_name}/media",
+    path => "${public_html_path}/${domain_name}/media",
     ensure => directory,
     owner => "${user}",
     group => 'www-data',
@@ -65,10 +68,10 @@ class user {
 
 class apt {
   exec { 'apt-get update':
-    logoutput => on_failure,
     # Ignoring error 100 related to 404 mirror searching (I guess).
-    returns => [0, 100],
-    timeout => 0
+    returns  => [0, 100],
+    timeout  => 0,
+    schedule => "daily",
   }
 
   package { 'python-software-properties':
@@ -94,6 +97,8 @@ class apt {
 }
 
 class nginx {
+  $sock_dir = '/tmp/uwsgi' # Without a trailing slash
+
   package { 'nginx':
     ensure => latest,
     require => Class['apt']
@@ -113,7 +118,7 @@ class nginx {
   file { 'sites-available config':
     path => "/etc/nginx/sites-available/${domain_name}",
     ensure => file,
-    content => template("${inc_file_path}/nginx/nginx.conf.erb"),
+    content => template("${manifests_path}/nginx/nginx.conf.erb"),
     require => Package['nginx']
   }
 
@@ -157,16 +162,10 @@ class uwsgi {
     require => Package['uwsgi']
   }
 
-  # EDIT: Replaced by systemd (for newer Ubuntu distros)
-  # Upstart file
-  #file { '/etc/init/uwsgi.conf':
-  #  ensure => file,
-  #  source => "${inc_file_path}/uwsgi/uwsgi.conf",
-  #  require => Package['uwsgi']
-  #}
-  file { '/etc/systemd/system/uwsgi.service':
+  file { 'systemd service':
+    path => '/etc/systemd/system/uwsgi.service',
     ensure => file,
-    source => "${inc_file_path}/uwsgi/uwsgi.service",
+    content => template("${manifests_path}/uwsgi/uwsgi.service.erb"),
     require => Package['uwsgi']
   }
 
@@ -174,7 +173,7 @@ class uwsgi {
   file { 'apps-available config':
     path => "/etc/uwsgi/apps-available/${project}.ini",
     ensure => file,
-    content => template("${inc_file_path}/uwsgi/uwsgi.ini.erb")
+    content => template("${manifests_path}/uwsgi/uwsgi.ini.erb")
   }
 
   file { 'apps-enabled config':
@@ -213,49 +212,27 @@ class mysql {
   }
 }
 
-class python {
-  package { 'curl':
-    ensure => latest,
-    require => Class['apt']
-  }
-
-  package { 'python':
-    ensure => latest,
-    require => Class['apt']
-  }
-
-  package { 'python-dev':
-    ensure => latest,
-    require => Class['apt']
-  }
-
-  exec { 'install-pip':
-    command => 'curl https://bootstrap.pypa.io/get-pip.py | python',
-    require => Package['python', 'curl']
-  }
+class { 'python' :
+  version    => 'system',
+  pip        => 'present',
+  dev        => 'present',
+  virtualenv => 'present',
+  gunicorn   => 'absent',
 }
 
 class virtualenv {
-  package { 'virtualenv':
-    ensure => latest,
-    provider => pip,
-    require => Class['python', 'user']
-  }
 
-  exec { 'create virtualenv':
-    command => "virtualenv --always-copy ${venv_name}",
-    cwd => "/home/${user}/virtualenvs",
-    user => $user,
-    require => Package['virtualenv']
-  }
-
-  file { "/home/${user}/virtualenvs/${venv_name}/requirements.txt":
-    ensure => file,
-    owner => "${user}",
-    group => "${user}",
-    mode => 0644,
-    source => "${inc_file_path}/virtualenv/requirements.txt",
-    require => Exec['create virtualenv']
+  python::virtualenv { "virtualenv":
+    ensure       => present,
+    version      => 'system',
+    requirements => $requirements_path,
+    #proxy        => 'http://proxy.domain.com:3128',
+    systempkgs   => false,
+    distribute   => false,
+    venv_dir     => "${virtualenvs_path}/${project}",
+    owner        => $user,
+    timeout      => 0
+    #require => Package['virtualenv']
   }
 }
 
@@ -292,4 +269,11 @@ class software {
     ensure => latest,
     require => Class['apt']
   }
+}
+
+# Schedules to avoid executing time/resource consuming tasks on every puppet run.
+# This was designed initially to execute "apt-get update" only once a day.
+schedule { "daily":
+  period => daily,
+  repeat => 1,
 }

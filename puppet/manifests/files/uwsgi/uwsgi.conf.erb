@@ -6,6 +6,6 @@ stop on runlevel [016]
 respawn
 
 env UWSGI_BIN=/usr/local/bin/uwsgi
-env LOGTO=/var/log/uwsgi/emperor.log
+env LOGTO=<%= @logs_path %>/emperor.log
 
 exec $UWSGI_BIN --die-on-term --emperor /etc/uwsgi/apps-enabled --logto $LOGTO

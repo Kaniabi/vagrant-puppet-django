@@ -7,6 +7,14 @@ require "yaml"
 current_dir = File.dirname(File.expand_path(__FILE__))
 config_file = YAML.load_file("#{current_dir}/config.yaml")
 
+working_path="/home/#{config_file['user']}"
+
+manifests_path="#{working_path}/manifests"
+code_path="#{working_path}/code"
+logs_path="#{working_path}/logs"
+virtualenvs_path="#{working_path}/virtualenvs"
+requirements_path= "#{code_path}/#{config_file['project']}/#{config_file['requirements_path']}"
+
 Vagrant.configure(2) do |config|
   config.vm.box = "ubuntu/wily32"
 
@@ -14,31 +22,32 @@ Vagrant.configure(2) do |config|
     vb.memory = "1024"
   end
 
-  # Create a forwarded port mapping which allows access to a specific port
-  # within the machine from a port on the host machine. In the example below,
-  # accessing "localhost:8080" will access port 80 on the guest machine.
   config.vm.network "forwarded_port", guest: 80, host: 8080
 
-  # Sync current folder on host to your project folder on guest machine.
-  #config.vm.synced_folder ".", "/home/#{config_file['user']}/virtualenvs/#{config_file['domain_name']}"
-  config.vm.synced_folder "code", "/opt/code"
-  # Path to the included files for Puppet.
-  config.vm.synced_folder "manifests/files", config_file["inc_file_path"]
+  config.vm.synced_folder "puppet/manifests/files", "#{manifests_path}"
+  config.vm.synced_folder "code",                   "#{code_path}"
 
   config.vm.provision "puppet" do |puppet|
-    puppet.manifests_path = "manifests"
+    puppet.manifests_path = "puppet/manifests"
+    puppet.module_path = "puppet/modules"
     puppet.manifest_file = "site.pp"
     puppet.facter = {
-      "inc_file_path" => config_file["inc_file_path"],
-      "tz"            => config_file["tz"],
-      "user"          => config_file["user"],
-      "password"      => config_file["password"],
-      "project"       => config_file["project"],
-      "domain_name"   => config_file["domain_name"],
-      "venv_name"     => config_file["venv_name"],
-      "db_name"       => config_file["db_name"],
-      "db_user"       => config_file["db_user"],
-      "db_password"   => config_file["db_password"],
+      "tz"             => config_file["tz"],
+      "user"           => config_file["user"],
+      "password"       => config_file["password"],
+
+      "manifests_path"    => "#{manifests_path}",
+      "code_path"         => "#{code_path}",
+      "logs_path"         => "#{logs_path}",
+      "virtualenvs_path"  => "#{working_path}/virtualenvs",
+      "public_html_path"  => "#{working_path}/public_html",
+      "requirements_path" => "#{requirements_path}",
+
+      "project"        => config_file["project"],
+      "domain_name"    => config_file["domain_name"],
+      "db_name"        => config_file["db_name"],
+      "db_user"        => config_file["db_user"],
+      "db_password"    => config_file["db_password"],
     }
   end
 end

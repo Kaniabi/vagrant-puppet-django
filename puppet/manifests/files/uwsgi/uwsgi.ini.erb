@@ -1,7 +1,7 @@
 [uwsgi]
 # Define variables
 project = %n
-base_dir = /opts/code/%(project)
+base_dir = <%= @code_path %>/%(project)
 
 # Config
 uid = <%= @uwsgi_user %>
@@ -11,8 +11,8 @@ socket = <%= @sock_dir %>/%(project).sock
 master = true
 no-orphans = true
 
-chdir = %(base_dir)/%(project)
+chdir = %(base_dir)
 module = %(project).wsgi:application
-virtualenv = %(base_dir)
+virtualenv = <%= @virtualenvs_path %>/%(project)
 
-logto = /var/log/uwsgi/%(project).log
+logto = <%= @logs_path %>/%(project).log

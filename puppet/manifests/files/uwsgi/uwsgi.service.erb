@@ -1,0 +1,17 @@
+# REF: https://www.digitalocean.com/community/tutorials/how-to-serve-django-applications-with-uwsgi-and-nginx-on-centos-7
+
+[Unit]
+Description=uWSGI Emperor
+
+[Service]
+# EDIT: This is from the tutorial. In our system we don't have nginx user!
+#       Find out why is this needed!
+# ExecStartPre=/usr/bin/bash -c 'mkdir -p /run/uwsgi; chown user:nginx /run/uwsgi'
+ExecStart=/usr/local/bin/uwsgi --die-on-term --emperor /etc/uwsgi/apps-enabled --logto <%= @logs_path %>/emperor.log
+Restart=always
+KillSignal=SIGQUIT
+Type=notify
+NotifyAccess=all
+
+[Install]
+WantedBy=multi-user.target
