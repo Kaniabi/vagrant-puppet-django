@@ -1,9 +1,21 @@
-[submodule "puppet\\modules\\python"]
-	path = puppet\\modules\\python
+[submodule "puppet/modules/python"]
+	path = puppet/modules/python
 	url = https://github.com/stankevich/puppet-python.git
-[submodule "puppet\\modules\\epel"]
-	path = puppet\\modules\\epel
+[submodule "puppet/modules/epel"]
+	path = puppet/modules/epel
 	url = https://github.com/stahnma/puppet-module-epel.git
-[submodule "puppet\\modules\\stdlib"]
-	path = puppet\\modules\\stdlib
+[submodule "puppet/modules/stdlib"]
+	path = puppet/modules/stdlib
 	url = https://github.com/puppetlabs/puppetlabs-stdlib.git
+[submodule "puppet/modules/nodejs"]
+	path = puppet/modules/nodejs
+	url = https://github.com/puppetlabs/puppetlabs-nodejs
+[submodule "puppet/modules/mysql"]
+	path = puppet/modules/mysql
+	url = https://github.com/puppetlabs/puppetlabs-mysql
+[submodule "puppet/modules/nginx"]
+	path = puppet/modules/nginx
+	url = https://github.com/jfryman/puppet-nginx.git
+[submodule "puppet/modules/uwsgi"]
+	path = puppet/modules/uwsgi
+	url = https://github.com/Engage/puppet-uwsgi.git

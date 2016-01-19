@@ -4,9 +4,7 @@
 Description=uWSGI Emperor
 
 [Service]
-# EDIT: This is from the tutorial. In our system we don't have nginx user!
-#       Find out why is this needed!
-# ExecStartPre=/usr/bin/bash -c 'mkdir -p /run/uwsgi; chown user:nginx /run/uwsgi'
+ExecStartPre=/usr/bin/bash -c 'mkdir -p /run/uwsgi; chown user:<%= @user %> /run/uwsgi'
 ExecStart=/usr/local/bin/uwsgi --die-on-term --emperor /etc/uwsgi/apps-enabled --logto <%= @logs_path %>/emperor.log
 Restart=always
 KillSignal=SIGQUIT

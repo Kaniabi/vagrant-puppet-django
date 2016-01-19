@@ -31,6 +31,7 @@ Vagrant.configure(2) do |config|
     puppet.manifests_path = "puppet/manifests"
     puppet.module_path = "puppet/modules"
     puppet.manifest_file = "site.pp"
+    puppet.hiera_config_path = "puppet/hiera.yaml"
     puppet.facter = {
       "tz"             => config_file["tz"],
       "user"           => config_file["user"],

@@ -9,12 +9,13 @@ Exec { path => '/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin' }
 include timezone
 include user
 include apt
-include nginx
-include uwsgi
-include mysql
-#include python
-include virtualenv
+include python_
+include nodejs_
+include nginx_
+include uwsgi_
+include mysql_
 include pildeps
+include virtualenv
 include software
 
 class timezone {
@@ -40,7 +41,6 @@ class user {
     require => Exec['add user']
   }
 
-  # Prepare user's project directories
   file {
     [
       "${virtualenvs_path}",
@@ -75,8 +75,8 @@ class apt {
   }
 
   package { 'python-software-properties':
-    ensure => latest,
-    require => Exec['apt-get update']
+  ensure => latest,
+  require => Exec['apt-get update']
   }
   exec { 'add-apt-repository ppa:nginx/stable':
     require => Package['python-software-properties'],
@@ -96,49 +96,53 @@ class apt {
   }
 }
 
-class nginx {
-  $sock_dir = '/tmp/uwsgi' # Without a trailing slash
-
-  package { 'nginx':
-    ensure => latest,
-    require => Class['apt']
-  }
-
-  service { 'nginx':
-    ensure => running,
-    enable => true,
-    require => Package['nginx']
-  }
-
-  file { '/etc/nginx/sites-enabled/default':
-    ensure => absent,
-    require => Package['nginx']
-  }
-
-  file { 'sites-available config':
-    path => "/etc/nginx/sites-available/${domain_name}",
-    ensure => file,
-    content => template("${manifests_path}/nginx/nginx.conf.erb"),
-    require => Package['nginx']
-  }
-
-  file { "/etc/nginx/sites-enabled/${domain_name}":
-    ensure => link,
-    target => "/etc/nginx/sites-available/${domain_name}",
-    require => File['sites-available config'],
-    notify => Service['nginx']
+class python_ {
+  class { 'python':
+    version    => 'system',
+    pip        => 'present',
+    dev        => 'present',
+    virtualenv => 'present',
+    gunicorn   => 'absent',
   }
 }
 
-class uwsgi {
-  $sock_dir = '/tmp/uwsgi' # Without a trailing slash
-  $uwsgi_user = 'www-data'
-  $uwsgi_group = 'www-data'
+class nodejs_ {
+  package { 'nodejs': require => Exec['apt-get update'] }
+  package { 'npm': require => Package['nodejs'] }
+  package { 'compress': provider => 'npm', require => Package['npm'] }
+  package { 'sass': provider => 'npm', require => Package['npm'] }
+}
 
+class ruby_ {
+  # I believe that ruby is already installed in ubuntu wily package because of puppet.
+  package { 'bower': provider => 'gem', require => Exec['apt-get update'] }
+}
+
+class nginx_ {
+  class { 'nginx':
+    require => Class['apt']
+  }
+
+  file { 'sites-available config':
+    path => "/etc/nginx/sites-available/${project}.conf",
+    ensure => file,
+    content => template("${manifests_path}/nginx/nginx.conf.erb"),
+    require => Class['nginx']
+  }
+
+  file { "sites-enabled config":
+    path => "/etc/nginx/sites-enabled/${project}.conf",
+    ensure => link,
+    target => "/etc/nginx/sites-available/${project}.conf",
+    require => File['sites-available config'],
+  }
+}
+
+class uwsgi_ {
   package { 'uwsgi':
     ensure => latest,
     provider => pip,
-    require => Class['python']
+    require => Class['python_']
   }
 
   service { 'uwsgi':
@@ -152,14 +156,6 @@ class uwsgi {
     ensure => directory,
     require => Package['uwsgi'],
     before => File['apps-available config']
-  }
-
-  # Prepare a directory for sock file
-  file { [$sock_dir]:
-    ensure => directory,
-    owner => "${uwsgi_user}",
-    group => "${uwsgi_user}",
-    require => Package['uwsgi']
   }
 
   file { 'systemd service':
@@ -182,57 +178,57 @@ class uwsgi {
     target => "/etc/uwsgi/apps-available/${project}.ini",
     require => File['apps-available config']
   }
+
+  # # TRYING with uwsgi module with no success. No suport for systemd...
+  #
+  # # It seems that uwsgi module doesn't create this (essential) directory.
+  # file { '/etc/uwsgi': ensure => directory }
+  #
+  # class { 'uwsgi':
+  #   package_ensure => 'latest',
+  #   service_ensure  => 'running',
+  #   service_provider => 'redhat',
+  #   python_pip => 'pip',  # Avoid conflict (redeclaration) with python module.
+  #   require => File['/etc/uwsgi']
+  # }
 }
 
-class mysql {
-  $create_db_cmd = "CREATE DATABASE ${db_name} CHARACTER SET utf8;"
-  $create_user_cmd = "CREATE USER '${db_user}'@localhost IDENTIFIED BY '${db_password}';"
-  $grant_db_cmd = "GRANT ALL PRIVILEGES ON ${db_name}.* TO '${db_user}'@localhost;"
+class mysql_ {
 
-  package { 'mysql-server':
-    ensure => latest,
-    require => Class['apt']
+  $override_options = {}
+
+  class { '::mysql::server':
+    root_password           => 'chucknorris',
+    remove_default_accounts => true,
+    override_options        => $override_options
   }
 
-  package { 'libmysqlclient-dev':
-    ensure => latest,
-    require => Class['apt']
+  class { '::mysql::client':
   }
 
-  service { 'mysql':
-    ensure => running,
-    enable => true,
-    require => Package['mysql-server']
+  class { '::mysql::bindings':
+    client_dev => 'true',  # Python's mysql related packages need this
+    client_dev_package_ensure => 'present'
   }
 
-  exec { 'grant user db':
-    command => "mysql -u root -e \"${create_db_cmd}${create_user_cmd}${grant_db_cmd}\"",
-    unless => "mysqlshow -u${db_user} -p${db_password} ${db_name}",
-    require => Service['mysql']
+  mysql::db { "${db_name}":
+    user => "${db_user}",
+    password => "${db_password}",
+    host => 'localhost',
+    grant => ['ALL PRIVILEGES']
   }
-}
-
-class { 'python' :
-  version    => 'system',
-  pip        => 'present',
-  dev        => 'present',
-  virtualenv => 'present',
-  gunicorn   => 'absent',
 }
 
 class virtualenv {
-
   python::virtualenv { "virtualenv":
     ensure       => present,
     version      => 'system',
     requirements => $requirements_path,
-    #proxy        => 'http://proxy.domain.com:3128',
     systempkgs   => false,
     distribute   => false,
     venv_dir     => "${virtualenvs_path}/${project}",
     owner        => $user,
     timeout      => 0
-    #require => Package['virtualenv']
   }
 }
 

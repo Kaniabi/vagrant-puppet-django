@@ -7,7 +7,7 @@ base_dir = <%= @code_path %>/%(project)
 uid = <%= @uwsgi_user %>
 gid = <%= @uwsgi_group %>
 
-socket = <%= @sock_dir %>/%(project).sock
+socket = /run/uwsgi/%(project).sock
 master = true
 no-orphans = true
 
