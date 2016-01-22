@@ -119,6 +119,8 @@ class ruby_ {
 }
 
 class nginx_ {
+  $sock_dir = '/run/uwsgi'
+
   class { 'nginx':
     require => Class['apt']
   }
@@ -139,6 +141,10 @@ class nginx_ {
 }
 
 class uwsgi_ {
+  $sock_dir = '/run/uwsgi'
+  $uwsgi_user = 'www-data'
+  $uwsgi_group = 'www-data'
+
   package { 'uwsgi':
     ensure => latest,
     provider => pip,
@@ -154,6 +160,14 @@ class uwsgi_ {
   # Prepare directories
   file { ['/var/log/uwsgi', '/etc/uwsgi', '/etc/uwsgi/apps-available', '/etc/uwsgi/apps-enabled']:
     ensure => directory,
+    require => Package['uwsgi'],
+    before => File['apps-available config']
+  }
+
+  file { [$sock_dir]:
+    ensure => directory,
+    owner => "${uwsgi_user}",
+    group => "${uwsgi_group}",
     require => Package['uwsgi'],
     before => File['apps-available config']
   }
